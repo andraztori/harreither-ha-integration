@@ -1,0 +1,13 @@
+{
+  "domain": "harreither",
+  "name": "Harreither Brain",
+  "codeowners": [
+    "@andraztori"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/andraztori/harreither-ha-integration",
+  "iot_class": "push_iot",
+  "issue_tracker": "https://github.com/andraztori/harreither-ha-integration/issues",
+  "requirements": ["harreither-brain-client==0.1.0"],
+  "version": 0.1
+}
