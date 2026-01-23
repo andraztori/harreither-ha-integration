@@ -1,4 +1,4 @@
-# Harreither Brain for Home Assistant
+# Harreither Brain integration for Home Assistant
 
 Custom integration that connects a Harreither Brain controller to Home Assistant. It authenticates with the controller, listens for live updates, and creates sensors and binary sensors dynamically based on the data the controller exposes.
 

@@ -6,6 +6,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers import selector
+from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import (
     HarrieitherClientAuthenticationError,
@@ -78,18 +80,42 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 LOGGER.exception(exception)
                 _errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(device_id)
+                await self.async_set_unique_id(user_input[CONF_HOST])
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=user_input[CONF_USERNAME],
                     data=user_input,
                 )
 
+        # Prepare defaults for form, including discovered host if available
+        defaults = {}
+        if not defaults.get(CONF_HOST) and "discovered_host" in self.context:
+            defaults[CONF_HOST] = self.context["discovered_host"]
+
         return self.async_show_form(
             step_id="user",
-            data_schema=self._build_schema(user_input),
+            data_schema=self._build_schema(defaults),
             errors=_errors,
         )
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> config_entries.ConfigFlowResult:
+        """Handle zeroconf discovery."""
+        LOGGER.debug("Zeroconf discovery_info: %s", discovery_info)
+
+        # Extract host from discovery info
+        host = discovery_info.host
+
+        # Set unique ID based on the device host
+        # We could in theory use discovery_info.name, but that's hard to align with manual entry
+        await self.async_set_unique_id(host)
+        self._abort_if_unique_id_configured()
+
+        # Store discovered host in context for prefilling the form
+        self.context["discovered_host"] = host
+
+        return await self.async_step_user(user_input=None)
 
     async def async_step_reconfigure(
         self,

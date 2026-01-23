@@ -9,5 +9,6 @@
   "iot_class": "push_iot",
   "issue_tracker": "https://github.com/andraztori/harreither-ha-integration/issues",
   "requirements": ["harreither-brain-client==0.1.0"],
+  "zeroconf": ["_ngappconn._tcp.local."],
   "version": 0.1
 }
