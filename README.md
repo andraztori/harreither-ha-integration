@@ -4,6 +4,7 @@ Custom integration that connects a Harreither Brain controller to Home Assistant
 
 ## Features
 - Native config flow: add the integration from Home Assistant UI (no YAML needed).
+- Zeroconf auto-discovery: the integration automatically discovers Harreither Brain controllers on your local network.
 - Live updates: websocket connection keeps entities in sync without polling.
 - Automatic entity creation:
 	- Temperature sensors when the device reports `°C` values.
@@ -31,9 +32,11 @@ You can install manually or via HACS as a custom repository.
 ## Configuration (UI)
 1. In Home Assistant, go to *Settings → Devices & Services* and click *Add Integration*.
 2. Search for **Harreither Brain**.
-3. Enter:
-	 - **Host**: the controller address (IP/hostname). Use `ws://` or `wss://` if you prefer to specify the scheme explicitly.
-	 - **Username** and **Password** for the controller.
+3. The integration will offer two ways to add a controller:
+   - **Auto-discovered**: if a Harreither Brain is found on your network via Zeroconf, it will appear as an option. Select it and proceed.
+   - **Manual entry**: enter the controller details manually:
+     - **Host**: the controller address (IP/hostname). Use `ws://` or `wss://` if you prefer to specify the scheme explicitly.
+     - **Username** and **Password** for the controller.
 4. Submit to finish. The integration will validate the credentials, store a unique device ID, and start the websocket connection.
 
 ## Entities created automatically

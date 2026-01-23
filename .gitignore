@@ -20,3 +20,4 @@ config/*
 # joe
 *~
 DEADJOE
+custom_components/harreither/harreither_brain_client
