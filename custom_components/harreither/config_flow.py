@@ -25,6 +25,8 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 1
 
+    _discovered_host: str | None = None
+
     def _build_schema(self, defaults: dict | None = None) -> vol.Schema:
         """Return form schema with optional defaults."""
 
@@ -89,8 +91,8 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Prepare defaults for form, including discovered host if available
         defaults = {}
-        if not defaults.get(CONF_HOST) and "discovered_host" in self.context:
-            defaults[CONF_HOST] = self.context["discovered_host"]
+        if not defaults.get(CONF_HOST) and self._discovered_host:
+            defaults[CONF_HOST] = self._discovered_host
 
         return self.async_show_form(
             step_id="user",
@@ -112,8 +114,8 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(host)
         self._abort_if_unique_id_configured()
 
-        # Store discovered host in context for prefilling the form
-        self.context["discovered_host"] = host
+        # Store discovered host for prefilling the form
+        self._discovered_host = host
 
         return await self.async_step_user(user_input=None)
 
@@ -151,9 +153,15 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     reason="reconfigure_successful",
                 )
 
+        defaults = {
+            CONF_HOST: entry.data.get(CONF_HOST),
+            CONF_USERNAME: entry.data.get(CONF_USERNAME),
+            CONF_PASSWORD: entry.data.get(CONF_PASSWORD),
+        }
+
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=self._build_schema(entry.data),
+            data_schema=self._build_schema(defaults),
             errors=errors,
         )
 

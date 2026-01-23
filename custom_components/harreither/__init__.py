@@ -30,7 +30,7 @@ from homeassistant.loader import async_get_loaded_integration
 
 from .const import DOMAIN, LOGGER
 from .data import HarreitherData
-from harreither_brain_client.connection import Connection
+from .connection import Connection
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
