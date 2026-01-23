@@ -17,7 +17,7 @@ from .harreither_brain_client.connection import Connection
 from .__init__ import get_url_from_host
 
 
-class HarreitherFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
+class class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Harreither."""
 
     VERSION = 1
