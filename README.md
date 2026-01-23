@@ -1,6 +1,6 @@
 # Harreither Brain for Home Assistant
 
-Custom integration that connects a Harreither Brain controller to Home Assistant over its websocket API. It authenticates with the controller, listens for live updates, and creates sensors and binary sensors dynamically based on the data the controller exposes.
+Custom integration that connects a Harreither Brain controller to Home Assistant. It authenticates with the controller, listens for live updates, and creates sensors and binary sensors dynamically based on the data the controller exposes.
 
 ## Features
 - Native config flow: add the integration from Home Assistant UI (no YAML needed).
@@ -15,7 +15,7 @@ Custom integration that connects a Harreither Brain controller to Home Assistant
 ## Requirements
 - A reachable Harreither Brain controller on your network.
 - Controller credentials (username and password).
-- The IP/hostname of the controller
+
 ## Installation
 You can install manually or via HACS as a custom repository.
 
@@ -51,5 +51,4 @@ Entities are added dynamically when the controller reports them. Live value chan
 - Authentication is retried as part of the reconnection loop.
 
 ## Troubleshooting
-- Double-check host formatting. If you omit `ws://`/`wss://`, the integration assumes `ws://`.
 - Invalid credentials will be flagged during setup; reconfigure the entry from *Devices & Services* if they change.
