@@ -13,7 +13,7 @@ from .api import (
     HarrieitherClientError,
 )
 from .const import DOMAIN, LOGGER
-from .harreither_brain_client.connection import Connection
+from harreither_brain_client.connection import Connection
 from .__init__ import get_url_from_host
 
 
