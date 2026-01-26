@@ -57,13 +57,20 @@ async def async_add_entity(
     entity_key = repr(dict_key)
     # Determine a user-friendly name with sensible fallbacks
     # 1) use provided name
-    # 2) fallback to vid_obj["text"] if available
+    # 2) fallback to _vid_obj["text"] if available
     # 3) fallback to the key
     # 4) finally use "Unknown"
     entity_name = data_entry.get("name")
-    vid_obj = data_entry.get("vid_obj")
-    if not entity_name and isinstance(vid_obj, dict):
-        entity_name = vid_obj.get("text")
+    _vid_obj = data_entry.get("_vid_obj")  # hard fail if it is not there
+    if not _vid_obj:
+        LOGGER.warning(
+            "Data entry for key %s is missing _vid_obj: %s",
+            entity_key,
+            data_entry,
+        )
+        return
+    if not entity_name and isinstance(_vid_obj, dict):
+        entity_name = _vid_obj.get("text")
     if not entity_name:
         entity_name = data_entry.get("key") or "Unknown"
     value = data_entry.get("value")
@@ -75,7 +82,17 @@ async def async_add_entity(
     # Organize detection as if/elif chain and log when nothing matches
     created = False
 
-    if vid_obj and vid_obj.get("unit") == "°C" and sensor_platform:
+    if _vid_obj.get("unit") == "°C" and _vid_obj.get("type") == 12 and sensor_platform:
+        if not isinstance(value, (int, float)):
+            LOGGER.warning(
+                "Skipping temperature entity %s (key %s); value not numeric: %s",
+                entity_name,
+                entity_key,
+                value,
+            )
+            return
+        if isinstance(value, int):
+            data_entry["value"] = float(value)
         # Temperature sensor
         LOGGER.info("Detected temperature sensor entity: %s", entity_name)
         entity_description = SensorEntityDescription(
@@ -94,7 +111,7 @@ async def async_add_entity(
         await sensor_platform.async_add_entities([sensor])
         created = True
 
-    elif vid_obj and vid_obj.get("unit") == "%" and sensor_platform:
+    elif _vid_obj.get("unit") == "%" and sensor_platform:
         # Humidity sensor
         LOGGER.info("Detected humidity sensor entity: %s", entity_name)
         humidity_description = SensorEntityDescription(
@@ -113,9 +130,9 @@ async def async_add_entity(
         await sensor_platform.async_add_entities([humidity_sensor])
         created = True
 
-    elif vid_obj and vid_obj.get("type") == 15:
+    elif _vid_obj.get("type") == 15:
         # Type 15: either binary sensor (2 elements) or enum sensor (>2 elements)
-        elements = vid_obj.get("elements", [])
+        elements = _vid_obj.get("elements", [])
         if len(elements) == 2 and binary_sensor_platform:
             LOGGER.info("Detected binary sensor entity: %s", entity_name)
             entity_description = BinarySensorEntityDescription(
@@ -155,10 +172,10 @@ async def async_add_entity(
 
     if not created:
         LOGGER.info(
-            "No entity setup for %s (key %s); vid_obj=%s",
+            "No entity setup for %s (key %s); _vid_obj=%s",
             entity_name,
             entity_key,
-            vid_obj,
+            _vid_obj,
         )
 
 
@@ -216,6 +233,11 @@ async def _async_notify_update_callback(
     new,
 ):
     """Handle update callbacks from the client."""
+    if key == (317, 1, None):  # this is system time 1-second ping
+        return
+
+    if key[1] == 0:  # this is jsut a break/back button
+        return
     # If this is a new entity, add it dynamically
     if new:
         await async_add_entity(
@@ -270,8 +292,8 @@ async def _connection_loop(
             # Remove all active entries before reconnecting
             await async_remove_all_entries(hass, entry)
 
-            conn_obj = Connection()
-            conn_obj.set_async_notify_update_callback(
+            conn_obj = Connection(traverse_screens_on_init=True)
+            conn_obj.add_async_notify_update_callback(
                 partial(_async_notify_update_callback, hass, entry)
             )
             try:
@@ -300,7 +322,7 @@ async def _connection_loop(
         except Exception as e:  # noqa: BLE001
             retry_count += 1
             LOGGER.info("Error during connection, restarting)")
-            LOGGER.debug("Exception details: %s", e, exc_info=True)
+            LOGGER.info("Exception details: %s", e, exc_info=True)
             # Continue to retry with backoff
             continue
 
