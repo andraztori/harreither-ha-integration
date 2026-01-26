@@ -13,6 +13,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntityDescription,
 )
+from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntityDescription,
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
+    Platform.SELECT,
     Platform.SENSOR,
 ]
 
@@ -73,6 +75,26 @@ async def async_add_entity(
         entity_name = _vid_obj.get("text")
     if not entity_name:
         entity_name = data_entry.get("key") or "Unknown"
+    # Prefix sensor names with screen title when available
+    screen_prefix: str = ""
+    try:
+        screen_key = data_entry.get("_screen_key")
+        from .connection import Connection as HarreitherConnection
+
+        conn: HarreitherConnection | None = (
+            entry.runtime_data.connection
+            if isinstance(entry.runtime_data.connection, HarreitherConnection)
+            else None
+        )
+        if screen_key and conn and getattr(conn, "data", None):
+            screen = conn.data.screens.get(screen_key)
+            if isinstance(screen, dict):
+                title = screen.get("title")
+                if isinstance(title, str) and title.strip():
+                    screen_prefix = title.strip() + " "
+    except Exception:  # noqa: BLE001
+        # Non-fatal: naming should not block entity setup
+        screen_prefix = ""
     value = data_entry.get("value")
 
     # Determine platforms
@@ -97,7 +119,7 @@ async def async_add_entity(
         LOGGER.info("Detected temperature sensor entity: %s", entity_name)
         entity_description = SensorEntityDescription(
             key=entity_key,
-            name=f"{entity_name} Temperature",
+            name=f"{screen_prefix}{entity_name} Temperature",
             device_class=SensorDeviceClass.TEMPERATURE,
             native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         )
@@ -116,7 +138,7 @@ async def async_add_entity(
         LOGGER.info("Detected humidity sensor entity: %s", entity_name)
         humidity_description = SensorEntityDescription(
             key=entity_key,
-            name=f"{entity_name} Humidity",
+            name=f"{screen_prefix}{entity_name} Humidity",
             device_class=SensorDeviceClass.HUMIDITY,
             native_unit_of_measurement=PERCENTAGE,
         )
@@ -131,9 +153,41 @@ async def async_add_entity(
         created = True
 
     elif _vid_obj.get("type") == 15:
-        # Type 15: either binary sensor (2 elements) or enum sensor (>2 elements)
+        # Type 15: either binary sensor (2 elements), enum sensor (>2 elements), or select (editable)
         elements = _vid_obj.get("elements", [])
-        if len(elements) == 2 and binary_sensor_platform:
+
+        # Check if this should be a select (if main object has edit=True)
+        if data_entry.get("edit") is True:
+            from .select import HarreitherInputSelect
+
+            input_select_platform = platform_dict.get(Platform.SELECT)
+            if input_select_platform and len(elements) > 0:
+                LOGGER.info(
+                    "Detected select entity with %s options: %s",
+                    len(elements),
+                    entity_name,
+                )
+                options = [
+                    elem.get("text", f"Option {i}")
+                    if isinstance(elem, dict)
+                    else str(elem)
+                    for i, elem in enumerate(elements)
+                ]
+                select_description = SelectEntityDescription(
+                    key=entity_key,
+                    name=f"{screen_prefix}{entity_name}",
+                    options=options,
+                )
+                input_select = HarreitherInputSelect(
+                    entry_id=entry.entry_id,
+                    entity_key=entity_key,
+                    entity_description=select_description,
+                    data_entry=data_entry,
+                )
+                entry.runtime_data.entities[entity_key] = input_select
+                await input_select_platform.async_add_entities([input_select])
+                created = True
+        elif len(elements) == 2 and binary_sensor_platform:
             LOGGER.info("Detected binary sensor entity: %s", entity_name)
             entity_description = BinarySensorEntityDescription(
                 key=entity_key,
@@ -162,7 +216,7 @@ async def async_add_entity(
             enum_sensor = HarreitherEnumSensor(
                 entry_id=entry.entry_id,
                 entity_key=entity_key,
-                entity_name=entity_name,
+                entity_name=f"{screen_prefix}{entity_name}",
                 options=options,
                 data_entry=data_entry,
             )
