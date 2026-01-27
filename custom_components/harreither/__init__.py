@@ -27,11 +27,15 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.helpers.entity_platform import async_get_platforms
+from homeassistant.helpers import entity_registry
 from homeassistant.loader import async_get_loaded_integration
 
 from .const import DOMAIN, LOGGER
 from .data import HarreitherData
 from .connection import Connection
+from .binary_sensor import HarreitherBinarytSensor
+from .select import HarreitherInputSelect
+from .sensor import HarreitherEnumSensor, HarreitherSensor
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -50,19 +54,23 @@ async def async_add_entity(
     entry: HarreitherConfigEntry,
     platform_dict: dict,
     dict_key,
-    data_entry: dict,
+    data_entry: Entry,
 ) -> None:
     """Add a single entity based on data_entry type."""
-    from .binary_sensor import HarreitherBinarytSensor
-    from .sensor import HarreitherEnumSensor, HarreitherSensor
 
-    entity_key = repr(dict_key)
+    screen_key = data_entry["_screen_key"]
+    entity_key = repr(dict_key) + repr(screen_key)
+    if entry.runtime_data.entities.get(entity_key):
+        LOGGER.error(
+            "Entity %s already exists, skipping creation",
+            entity_key,
+        )
+        return
     # Determine a user-friendly name with sensible fallbacks
     # 1) use provided name
     # 2) fallback to _vid_obj["text"] if available
     # 3) fallback to the key
     # 4) finally use "Unknown"
-    entity_name = data_entry.get("name")
     _vid_obj = data_entry.get("_vid_obj")  # hard fail if it is not there
     if not _vid_obj:
         LOGGER.warning(
@@ -71,35 +79,21 @@ async def async_add_entity(
             data_entry,
         )
         return
-    if not entity_name and isinstance(_vid_obj, dict):
-        entity_name = _vid_obj.get("text")
-    if not entity_name:
-        entity_name = data_entry.get("key") or "Unknown"
     # Prefix sensor names with screen title when available
     screen_prefix: str = ""
-    try:
-        screen_key = data_entry.get("_screen_key")
-        from .connection import Connection as HarreitherConnection
+    conn = entry.runtime_data.connection
+    screen = conn.data.screens[screen_key]
+    screen_prefix = screen.get("title").strip()
+    entity_name = (
+        screen_prefix + data_entry.get("name", "")  # + " " + _vid_obj.get("text")
+    )
 
-        conn: HarreitherConnection | None = (
-            entry.runtime_data.connection
-            if isinstance(entry.runtime_data.connection, HarreitherConnection)
-            else None
-        )
-        if screen_key and conn and getattr(conn, "data", None):
-            screen = conn.data.screens.get(screen_key)
-            if isinstance(screen, dict):
-                title = screen.get("title")
-                if isinstance(title, str) and title.strip():
-                    screen_prefix = title.strip() + " "
-    except Exception:  # noqa: BLE001
-        # Non-fatal: naming should not block entity setup
-        screen_prefix = ""
     value = data_entry.get("value")
 
     # Determine platforms
     sensor_platform = platform_dict.get(Platform.SENSOR)
     binary_sensor_platform = platform_dict.get(Platform.BINARY_SENSOR)
+    input_select_platform = platform_dict.get(Platform.SELECT)
 
     # Organize detection as if/elif chain and log when nothing matches
     created = False
@@ -119,7 +113,7 @@ async def async_add_entity(
         LOGGER.info("Detected temperature sensor entity: %s", entity_name)
         entity_description = SensorEntityDescription(
             key=entity_key,
-            name=f"{screen_prefix}{entity_name} Temperature",
+            name=f"{entity_name} Temperature",
             device_class=SensorDeviceClass.TEMPERATURE,
             native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         )
@@ -130,7 +124,10 @@ async def async_add_entity(
             data_entry=data_entry,
         )
         entry.runtime_data.entities[entity_key] = sensor
-        await sensor_platform.async_add_entities([sensor])
+        try:
+            await sensor_platform.async_add_entities([sensor])
+        except:
+            pass
         created = True
 
     elif _vid_obj.get("unit") == "%" and sensor_platform:
@@ -138,7 +135,7 @@ async def async_add_entity(
         LOGGER.info("Detected humidity sensor entity: %s", entity_name)
         humidity_description = SensorEntityDescription(
             key=entity_key,
-            name=f"{screen_prefix}{entity_name} Humidity",
+            name=f"{entity_name} Humidity",
             device_class=SensorDeviceClass.HUMIDITY,
             native_unit_of_measurement=PERCENTAGE,
         )
@@ -158,35 +155,30 @@ async def async_add_entity(
 
         # Check if this should be a select (if main object has edit=True)
         if data_entry.get("edit") is True:
-            from .select import HarreitherInputSelect
-
-            input_select_platform = platform_dict.get(Platform.SELECT)
-            if input_select_platform and len(elements) > 0:
-                LOGGER.info(
-                    "Detected select entity with %s options: %s",
-                    len(elements),
-                    entity_name,
-                )
-                options = [
-                    elem.get("text", f"Option {i}")
-                    if isinstance(elem, dict)
-                    else str(elem)
-                    for i, elem in enumerate(elements)
-                ]
-                select_description = SelectEntityDescription(
-                    key=entity_key,
-                    name=f"{screen_prefix}{entity_name}",
-                    options=options,
-                )
-                input_select = HarreitherInputSelect(
-                    entry_id=entry.entry_id,
-                    entity_key=entity_key,
-                    entity_description=select_description,
-                    data_entry=data_entry,
-                )
-                entry.runtime_data.entities[entity_key] = input_select
-                await input_select_platform.async_add_entities([input_select])
-                created = True
+            LOGGER.info(
+                "Detected select entity with %s options: %s",
+                len(elements),
+                entity_name,
+            )
+            options = [
+                elem.get("text", f"Option {i}") if isinstance(elem, dict) else str(elem)
+                for i, elem in enumerate(elements)
+            ]
+            select_description = SelectEntityDescription(
+                key=entity_key,
+                name=f"{entity_name}",
+                options=options,
+            )
+            input_select = HarreitherInputSelect(
+                entry_id=entry.entry_id,
+                entity_key=entity_key,
+                entity_description=select_description,
+                data_entry=data_entry,
+                runtime_data=entry.runtime_data,
+            )
+            entry.runtime_data.entities[entity_key] = input_select
+            await input_select_platform.async_add_entities([input_select])
+            created = True
         elif len(elements) == 2 and binary_sensor_platform:
             LOGGER.info("Detected binary sensor entity: %s", entity_name)
             entity_description = BinarySensorEntityDescription(
@@ -216,7 +208,7 @@ async def async_add_entity(
             enum_sensor = HarreitherEnumSensor(
                 entry_id=entry.entry_id,
                 entity_key=entity_key,
-                entity_name=f"{screen_prefix}{entity_name}",
+                entity_name=f"{entity_name}",
                 options=options,
                 data_entry=data_entry,
             )
@@ -245,8 +237,6 @@ async def async_remove_all_entries(
     LOGGER.info("Removing all active entries for connection restart")
 
     # Get registry to remove entities
-    from homeassistant.helpers import entity_registry
-
     registry = entity_registry.async_get(hass)
 
     # Remove all entities tracked in runtime data
@@ -282,10 +272,10 @@ def get_url_from_host(host: str) -> str:
 async def _async_notify_update_callback(
     hass: HomeAssistant,
     entry: HarreitherConfigEntry,
-    key,
-    value_dict,
-    new,
-):
+    key: tuple,
+    entry_data: Entry,
+    new: bool,
+) -> None:
     """Handle update callbacks from the client."""
     if key == (317, 1, None):  # this is system time 1-second ping
         return
@@ -295,11 +285,12 @@ async def _async_notify_update_callback(
     # If this is a new entity, add it dynamically
     if new:
         await async_add_entity(
-            hass, entry, entry.runtime_data.platform_dict, key, value_dict
+            hass, entry, entry.runtime_data.platform_dict, key, entry_data
         )
 
-    value = value_dict.get("value")
-    entity_key = repr(key)
+    value = entry_data.get("value")
+    screen_key = entry_data["_screen_key"]
+    entity_key = repr(key) + repr(screen_key)
 
     # Look up entity directly in the entities dict
     entity = entry.runtime_data.entities.get(entity_key)

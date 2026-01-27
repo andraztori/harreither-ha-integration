@@ -33,15 +33,17 @@ class HarreitherInputSelect(SelectEntity):
         entry_id: str,
         entity_key: str,
         entity_description: SelectEntityDescription,
-        data_entry: dict | None = None,
+        data_entry: dict,
+        runtime_data: Any,
     ) -> None:
         """Initialize the select entity."""
         self.entity_description = entity_description
         self._attr_unique_id = f"{entry_id}-{entity_key}"
         self._attr_has_entity_name = True
         self._data_entry = data_entry
+        self._runtime_data = runtime_data
 
-        current_value = data_entry.get("value") if data_entry else 0
+        current_value = data_entry.get("value")
         if isinstance(current_value, int) and 0 <= current_value < len(
             entity_description.options
         ):
@@ -54,9 +56,23 @@ class HarreitherInputSelect(SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         if option in self.entity_description.options:
+            # Get the index of the selected option
+            option_index = self.entity_description.options.index(option)
             self._attr_current_option = option
             self.async_write_ha_state()
             LOGGER.info("Select %s set to %s", self.entity_description.name, option)
+
+            connection = self._runtime_data.connection
+
+            # First, navigate to the correct screen
+            screen_msg = self._data_entry.message_activate_entering_screen(connection)
+            screen_ack = await connection.enqueue_message_get_ack(screen_msg)
+            LOGGER.debug("Received ACK for ACTUAL_SCREEN: %s", screen_ack)
+
+            # Then, send the ACTION_EDITED_VALUE message to change the value
+            msg = self._data_entry.message_select(option_index)
+            ack = await connection.enqueue_message_get_ack(msg)
+            LOGGER.debug("Received ACK for select change: %s", ack)
         else:
             LOGGER.warning(
                 "Option %s not in available options for %s",
