@@ -11,6 +11,8 @@ Custom integration that connects a Harreither Brain controller to Home Assistant
 	- Humidity sensors when the device reports percentage values.
 	- Binary sensors when the device exposes two-state elements.
 	- Enum sensors for multi-state elements (e.g., modes) with descriptive options.
+- **Automatic screen traversal**: navigate through controller screens programmatically without manual intervention.
+- **Select entities for multi-option editing**: edit entities by selecting one of multiple available options through the Home Assistant UI.
 - Reconnect and backoff logic so the integration retries when the controller drops.
 
 ## Requirements
