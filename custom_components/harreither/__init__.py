@@ -152,7 +152,7 @@ async def async_add_entity(
         created = True
 
     elif _vid_obj.get("type") == 15:
-        # Type 15: either binary sensor (2 elements), enum sensor (>2 elements), or select (editable)
+        # Type 15: either binary sensor ( elements), enum sensor (>2 elements), or select (editable)
         elements = _vid_obj.get("elements", [])
 
         # Check if this should be a select (if main object has edit=True)
@@ -280,6 +280,9 @@ async def _async_notify_update_callback(
 ) -> None:
     """Handle update callbacks from the client."""
     if key == (317, 1, None):  # this is system time 1-second ping
+        return
+    if key[0] == 318:  # this is "a problem" indicator
+        LOGGER.warning("Received 'a problem' indicator update, ignoring")
         return
 
     if key[1] == 0:  # this is jsut a break/back button

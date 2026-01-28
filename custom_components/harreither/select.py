@@ -67,12 +67,13 @@ class HarreitherInputSelect(SelectEntity):
             connection = self._runtime_data.connection
 
             # First, navigate to the correct screen
-            screen_msg = self._data_entry.message_activate_entering_screen(connection)
+            # this might not be necesseary, but we don't know
+            screen_msg = self._data_entry.message_activate_entering_screen()
             screen_ack = await connection.enqueue_message_get_ack(screen_msg)
             LOGGER.debug("Received ACK for ACTUAL_SCREEN: %s", screen_ack)
 
             # Then, send the ACTION_EDITED_VALUE message to change the value
-            msg = self._data_entry.message_edit_value(option_index, connection)
+            msg = self._data_entry.message_edit_value(option_index)
             ack = await connection.enqueue_message_get_ack(msg)
             LOGGER.debug("Received ACK for select change: %s", ack)
         else:
