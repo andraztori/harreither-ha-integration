@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+    from .harreither_brain_client.data import Entry
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -33,14 +35,14 @@ class HarreitherInputSelect(SelectEntity):
         entry_id: str,
         entity_key: str,
         entity_description: SelectEntityDescription,
-        data_entry: dict,
+        data_entry: Entry,
         runtime_data: Any,
     ) -> None:
         """Initialize the select entity."""
         self.entity_description = entity_description
         self._attr_unique_id = f"{entry_id}-{entity_key}"
         self._attr_has_entity_name = True
-        self._data_entry = data_entry
+        self._data_entry: Entry = data_entry
         self._runtime_data = runtime_data
 
         current_value = data_entry.get("value")
@@ -70,7 +72,7 @@ class HarreitherInputSelect(SelectEntity):
             LOGGER.debug("Received ACK for ACTUAL_SCREEN: %s", screen_ack)
 
             # Then, send the ACTION_EDITED_VALUE message to change the value
-            msg = self._data_entry.message_select(option_index)
+            msg = self._data_entry.message_edit_value(option_index, connection)
             ack = await connection.enqueue_message_get_ack(msg)
             LOGGER.debug("Received ACK for select change: %s", ack)
         else:

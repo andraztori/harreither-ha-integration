@@ -85,7 +85,9 @@ async def async_add_entity(
     screen = conn.data.screens[screen_key]
     screen_prefix = screen.get("title").strip()
     entity_name = (
-        screen_prefix + data_entry.get("name", "")  # + " " + _vid_obj.get("text")
+        screen_prefix
+        + " / "
+        + data_entry.get("name", "")  # + " " + _vid_obj.get("text")
     )
 
     value = data_entry.get("value")
