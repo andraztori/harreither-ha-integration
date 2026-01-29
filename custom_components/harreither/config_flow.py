@@ -14,8 +14,8 @@ from .api import (
     HarrieitherClientCommunicationError,
     HarrieitherClientError,
 )
-from .const import DOMAIN, LOGGER
-from .connection import Connection
+from .const import DOMAIN, LOGGER, CONF_AREA
+from .brain import Connection
 from .__init__ import get_url_from_host
 
 
@@ -55,6 +55,10 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         type=selector.TextSelectorType.PASSWORD,
                     ),
                 ),
+                vol.Optional(
+                    CONF_AREA,
+                    default=defaults.get(CONF_AREA),
+                ): selector.AreaSelector(),
             },
         )
 
@@ -157,6 +161,7 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_HOST: entry.data.get(CONF_HOST),
             CONF_USERNAME: entry.data.get(CONF_USERNAME),
             CONF_PASSWORD: entry.data.get(CONF_PASSWORD),
+            CONF_AREA: entry.data.get(CONF_AREA),
         }
 
         return self.async_show_form(

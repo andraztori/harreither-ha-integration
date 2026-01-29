@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.loader import Integration
 
+from .brain import Connection
+
 
 type HarreitherConfigEntry = ConfigEntry[HarreitherData]
 
@@ -23,7 +25,9 @@ class HarreitherData:
     entities: dict = field(
         default_factory=dict
     )  # Dictionary mapping entity keys to entity objects
-    connection: object | None = None  # Connection object from harreither_brain_client
+    connection: Connection | None = (
+        None  # Connection object from harreither_brain_client
+    )
     connection_task: Task | None = None  # Task running the connection loop
     platform_dict: dict = field(
         default_factory=dict

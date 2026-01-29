@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .harreither_brain_client.data import Entry
+    from .brain import Entry
 
 
 async def async_setup_entry(
@@ -67,7 +67,7 @@ class HarreitherInputSelect(SelectEntity):
             connection = self._runtime_data.connection
 
             # First, navigate to the correct screen
-            # this might not be necesseary, but we don't know
+            # this might not be necesseary, but we don't know...
             screen_msg = self._data_entry.message_activate_entering_screen()
             screen_ack = await connection.enqueue_message_get_ack(screen_msg)
             LOGGER.debug("Received ACK for ACTUAL_SCREEN: %s", screen_ack)

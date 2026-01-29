@@ -28,11 +28,13 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.entity_platform import async_get_platforms
 from homeassistant.helpers import entity_registry
+from homeassistant.helpers.device_registry import async_get as async_get_device_registry
+from homeassistant.helpers.entity_registry import async_get, RegistryEntry
 from homeassistant.loader import async_get_loaded_integration
 
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, LOGGER, CONF_AREA
 from .data import HarreitherData
-from .connection import Connection
+from .brain import Connection, Entry
 from .binary_sensor import HarreitherBinarytSensor
 from .select import HarreitherInputSelect
 from .sensor import HarreitherEnumSensor, HarreitherSensor
@@ -59,7 +61,7 @@ async def async_add_entity(
     """Add a single entity based on data_entry type."""
 
     screen_key = data_entry["_screen_key"]
-    entity_key = repr(dict_key) + repr(screen_key)
+    entity_key = repr(dict_key)
     if entry.runtime_data.entities.get(entity_key):
         LOGGER.error(
             "Entity %s already exists, skipping creation",
@@ -82,20 +84,25 @@ async def async_add_entity(
     # Prefix sensor names with screen title when available
     screen_prefix: str = ""
     conn = entry.runtime_data.connection
-    screen = conn.data.screens[screen_key]
+    screen = conn.entries.screens[screen_key]
     screen_prefix = screen.get("title").strip()
-    entity_name = (
-        screen_prefix
-        + " / "
-        + data_entry.get("name", "")  # + " " + _vid_obj.get("text")
-    )
+
+    # Build entity name: screen prefix + name (if exists) + text (if not "???")
+    name_parts = [screen_prefix]
+    entry_name = data_entry.get("name", "").strip()
+    if entry_name:
+        name_parts.append(entry_name)
+    text = _vid_obj.get("text", "").strip()
+    if text and text != "???":
+        name_parts.append(text)
+    entity_name = " / ".join(name_parts)
 
     value = data_entry.get("value")
 
-    # Determine platforms
-    sensor_platform = platform_dict.get(Platform.SENSOR)
-    binary_sensor_platform = platform_dict.get(Platform.BINARY_SENSOR)
-    input_select_platform = platform_dict.get(Platform.SELECT)
+    # Determine platforms, all of them have to be loaded already
+    sensor_platform = platform_dict[Platform.SENSOR]
+    binary_sensor_platform = platform_dict[Platform.BINARY_SENSOR]
+    input_select_platform = platform_dict[Platform.SELECT]
 
     # Organize detection as if/elif chain and log when nothing matches
     created = False
@@ -115,7 +122,7 @@ async def async_add_entity(
         LOGGER.info("Detected temperature sensor entity: %s", entity_name)
         entity_description = SensorEntityDescription(
             key=entity_key,
-            name=f"{entity_name} Temperature",
+            name=f"{entity_name} ",
             device_class=SensorDeviceClass.TEMPERATURE,
             native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         )
@@ -137,7 +144,7 @@ async def async_add_entity(
         LOGGER.info("Detected humidity sensor entity: %s", entity_name)
         humidity_description = SensorEntityDescription(
             key=entity_key,
-            name=f"{entity_name} Humidity",
+            name=f"{entity_name}",
             device_class=SensorDeviceClass.HUMIDITY,
             native_unit_of_measurement=PERCENTAGE,
         )
@@ -225,6 +232,67 @@ async def async_add_entity(
             entity_key,
             _vid_obj,
         )
+
+    # Set area and tags for created entity
+    if created:
+        area_id = entry.data.get(CONF_AREA)
+        # Pass entity object to get unique_id (stored in entry.runtime_data.entities)
+        created_entity = entry.runtime_data.entities.get(entity_key)
+        if created_entity:
+            await _set_entity_area_and_tags(
+                hass=hass,
+                entry=entry,
+                entity=created_entity,
+                area_id=area_id,
+            )
+
+
+async def _set_entity_area_and_tags(
+    hass: HomeAssistant,
+    entry: HarreitherConfigEntry,
+    entity: object,
+    area_id: str | None,
+) -> None:
+    """Set area and tags for a newly created entity."""
+    entity_registry_obj = async_get(hass)
+    device_registry = async_get_device_registry(hass)
+
+    # Get unique_id from entity (much faster than iterating all entities)
+    unique_id = getattr(entity, "unique_id", None)
+    if not unique_id:
+        LOGGER.warning("Entity %s has no unique_id", entity)
+        return
+
+    # Look up entity by unique_id in the registry
+    entity_id = entity_registry_obj.async_get_entity_id(None, None, unique_id)
+    if not entity_id:
+        LOGGER.warning("Could not find entity with unique_id %s", unique_id)
+        return
+
+    # Get the full entity entry object
+    entity_entry = entity_registry_obj.entities.get(entity_id)
+    if not entity_entry:
+        return
+
+    # Combine tags - keep existing tags and add harreither
+    existing_tags = set(entity_entry.tags) if entity_entry.tags else set()
+    existing_tags.add("harreither")
+
+    # Update entity with area and tags
+    entity_registry_obj.async_update_entity(
+        entity_entry.entity_id,
+        area_id=area_id if area_id else None,
+        tags=existing_tags,
+    )
+
+    # If entity is linked to a device, update device area too
+    if entity_entry.device_id:
+        device = device_registry.async_get(entity_entry.device_id)
+        if device and area_id:
+            device_registry.async_update_device(
+                device.id,
+                area_id=area_id,
+            )
 
 
 async def async_remove_all_entries(

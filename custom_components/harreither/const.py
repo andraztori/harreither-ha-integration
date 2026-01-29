@@ -6,3 +6,4 @@ LOGGER: Logger = getLogger(__package__)
 
 DOMAIN = "harreither"
 ATTRIBUTION = ""
+CONF_AREA = "area"
