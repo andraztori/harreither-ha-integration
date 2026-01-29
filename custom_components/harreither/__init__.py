@@ -363,7 +363,7 @@ async def _async_notify_update_callback(
 
     value = entry_data.get("value")
     screen_key = entry_data["_screen_key"]
-    entity_key = repr(key) + repr(screen_key)
+    entity_key = repr(key)
 
     # Look up entity directly in the entities dict
     entity = entry.runtime_data.entities.get(entity_key)
