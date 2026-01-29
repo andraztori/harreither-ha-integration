@@ -8,7 +8,7 @@
   "documentation": "https://github.com/andraztori/harreither-ha-integration",
   "iot_class": "push_iot",
   "issue_tracker": "https://github.com/andraztori/harreither-ha-integration/issues",
-  "requirements": ["harreither-brain-client==0.2.0"],
+  "requirements": ["harreither-brain-client==0.3.0"],
   "zeroconf": ["_ngappconn._tcp.local."],
   "version": 0.3
 }
