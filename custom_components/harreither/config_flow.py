@@ -57,7 +57,7 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(
                     CONF_AREA,
-                    default=defaults.get(CONF_AREA),
+                    default=defaults.get(CONF_AREA) or vol.UNDEFINED,
                 ): selector.AreaSelector(),
             },
         )
@@ -134,7 +134,7 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
-                device_id = await self._test_credentials(
+                await self._test_credentials(
                     host=user_input[CONF_HOST],
                     username=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD],
@@ -149,10 +149,14 @@ class HarreitherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 LOGGER.exception(exception)
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(device_id)
-                self._abort_if_unique_id_mismatch(reason="wrong_account")
+                # Keep the host-based identity used by setup and discovery.
+                host = user_input[CONF_HOST]
+                await self.async_set_unique_id(host)
+                if host != entry.unique_id:
+                    self._abort_if_unique_id_configured()
                 return self.async_update_reload_and_abort(
                     entry,
+                    unique_id=host,
                     data_updates=user_input,
                     reason="reconfigure_successful",
                 )
